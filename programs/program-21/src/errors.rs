@@ -1,135 +1,135 @@
-// programs/blackjack_anchor/src/errors.rs
-
 use anchor_lang::prelude::*;
 
 #[error_code]
-pub enum BlackjackError {
-    #[msg("Table name is too short.")]
-    TableNameTooShort,
-    #[msg("Table name is too long.")]
-    TableNameTooLong,
-    #[msg("Table name contains invalid characters.")]
-    TableNameInvalidChars,
-    #[msg("Table name cannot start or end with a hyphen.")]
-    TableNameInvalidHyphenPlacement,
-    #[msg("Table name cannot have consecutive hyphens.")]
-    TableNameConsecutiveHyphens,
-    #[msg("Max players must be between 1 and 6.")]
-    InvalidMaxPlayers,
-    #[msg("Min bet must be less than or equal to max bet.")]
-    MinBetExceedsMaxBet,
-    #[msg("Min bet must be greater than 0.")]
-    MinBetIsZero,
-    #[msg("Collateral calculation resulted in overflow.")]
-    CollateralOverflow,
-    #[msg("Game session account is not active or does not exist.")]
-    GameSessionNotActive,
-    #[msg("Seat index is out of bounds.")]
-    InvalidSeatIndex,
-    #[msg("Seat is already taken.")]
-    SeatTaken,
-    #[msg("Seat is empty.")]
-    SeatEmpty,
-    #[msg("Player not found at specified seat.")]
-    PlayerNotFoundAtSeat,
-    #[msg("Player has an active bet or unresolved hand.")]
-    PlayerHasActiveBet,
-    #[msg("Game is not in AcceptingBets state.")]
-    NotAcceptingBets,
-    #[msg("Dealer has stopped accepting new bets for new rounds.")]
-    BetsAcceptanceStoppedByDealer,
-    #[msg("Bet value is below minimum table bet.")]
-    BetBelowMin,
-    #[msg("Bet value is above maximum table bet.")]
-    BetAboveMax,
-    #[msg("Player is not at the specified seat index.")]
-    PlayerNotAtSeatIndex,
-    #[msg("Player has no bet placed for this round.")]
-    PlayerHasNoBet,
-    #[msg("Game state is not Dealing or invalid for this action.")]
-    InvalidGameStateForDeal,
-    #[msg("Not enough players to start the round.")]
-    NotEnoughPlayers,
-    #[msg("Game state is not PlayerTurns.")]
-    NotPlayerTurnsState,
-    #[msg("It is not this player's turn.")]
-    NotPlayerTurn,
-    #[msg("Invalid hand index for player.")]
-    InvalidHandIndex,
-    #[msg("Hand is not in Playing state.")]
-    HandNotPlaying,
-    #[msg("Deck is empty or insufficient cards.")]
-    DeckEmpty,
-    #[msg("Cannot double down, player does not have exactly two cards.")]
-    CannotDoubleNotTwoCards,
-    #[msg("Cannot double down, not enough funds.")]
-    InsufficientFundsForDoubleDown,
-    #[msg("Cannot split, player does not have exactly two cards.")]
-    CannotSplitNotTwoCards,
-    #[msg("Cannot split, card ranks do not match.")]
-    CannotSplitRanksMismatch,
-    #[msg("Cannot split, player has already split this hand.")]
-    CannotSplitAlreadySplit,
-    #[msg("Cannot split, not enough funds.")]
-    InsufficientFundsForSplit,
-    #[msg("Game state is not DealerTurn.")]
-    NotDealerTurnState,
-    #[msg("Game state is not RoundOver.")]
-    NotRoundOverState,
-    #[msg("No profit to withdraw for the specified token or at all.")]
-    NoProfitToWithdraw,
-    #[msg("Cannot close table, active players or unresolved bets exist.")]
-    CannotCloseTableActiveGame,
-    #[msg("Arithmetic overflow/underflow occurred.")]
+pub enum TwentyOneError {
+    #[msg("Arithmetic overflow")]
     ArithmeticOverflow,
-    #[msg("The provided token mint for withdrawal is not in profit tracker.")]
-    TokenMintNotInProfitTracker,
-    #[msg("Player already has a hand. Cannot re-initialize.")]
-    PlayerHandAlreadyExists,
-    #[msg("Player hand not found for action.")]
-    PlayerHandNotFound,
-    #[msg("Cannot hit on a hand that is not Playing.")]
-    CannotHitHandNotPlaying,
-    #[msg("Cannot stand on a hand that is not Playing.")]
-    CannotStandHandNotPlaying,
-    #[msg("Dealer must be the signer for this action.")]
-    DealerNotSigner,
-    #[msg("Player must be the signer for this action.")]
-    PlayerNotSigner,
-    #[msg("Payout calculation error.")]
-    PayoutError,
-    #[msg("Failed to parse pubkey from string.")]
-    PubkeyParseError,
-    #[msg("The chosen seat is not for the current turn player.")]
-    WrongSeatForTurn,
-    #[msg("The chosen hand is not for the current turn player.")]
-    WrongHandForTurn,
-    #[msg("Cannot perform action, player has Blackjack or is Busted/Stood.")]
-    PlayerHandFinalized,
-    #[msg("Token mint for bet does not match hand's token mint.")]
-    BetTokenMintMismatch,
-    #[msg("Invalid number of cards to deal for split.")]
-    InvalidSplitDeal,
-    #[msg("Cannot find player seat for pubkey.")]
-    CannotFindPlayerSeat,
-    #[msg("USDC Mint mismatch.")]
-    UsdcMintMismatch,
-    #[msg("Owner fee recipient account mint mismatch.")]
-    OwnerFeeAccountMintMismatch,
-    #[msg("Owner fee recipient account owner mismatch.")]
-    OwnerFeeAccountOwnerMismatch,
-    #[msg("Dealer profit account mint mismatch.")]
-    DealerProfitAccountMintMismatch,
-    #[msg("Dealer profit account owner mismatch.")]
-    DealerProfitAccountOwnerMismatch,
-    #[msg("Player token account mint mismatch for payout.")]
-    PlayerPayoutAccountMintMismatch,
-    #[msg("Player token account owner mismatch for payout.")]
-    PlayerPayoutAccountOwnerMismatch,
-    #[msg("Cannot perform action on this hand, it is already finalized (Blackjack, Busted, Stood).")]
+    #[msg("Player does not have an active bet")]
+    PlayerHasActiveBet,
+    #[msg("Not currently accepting bets")]
+    NotAcceptingBets,
+    #[msg("Pyth price feed is stale")]
+    PriceFeedStale,
+    #[msg("Price feed is not available or not currently trading")]
+    PriceFeedUnavailable,
+    #[msg("Calculated payout does not match expected payout")]
+    PayoutCalculationMismatch,
+    #[msg("Invalid game state for dealing cards")]
+    InvalidGameStateForDeal,
+    #[msg("Not enough players to start the deal")]
+    NotEnoughPlayers,
+    #[msg("Invalid hand index provided")]
+    InvalidHandIndex,
+    #[msg("Action cannot be performed on a finalized hand (Stood, Busted, etc.)")]
     HandActionOnFinalizedHand,
-    #[msg("The game session account's authority for the SPL token escrow does not match.")]
-    EscrowAuthorityMismatch,
-    #[msg("Remaining accounts are not structured as expected for payouts.")]
-    InvalidRemainingAccountsForPayout,
+    #[msg("Cannot double down when not having exactly two cards")]
+    CannotDoubleNotTwoCards,
+    #[msg("The token mint of the bet does not match the provided account")]
+    BetTokenMintMismatch,
+    #[msg("Insufficient funds to double down")]
+    InsufficientFundsForDoubleDown,
+    #[msg("Cannot split a hand that has already been split")]
+    CannotSplitAlreadySplit,
+    #[msg("Cannot split when not having exactly two cards")]
+    CannotSplitNotTwoCards,
+    #[msg("Cannot split cards with mismatched ranks")]
+    CannotSplitRanksMismatch,
+    #[msg("Insufficient funds to split")]
+    InsufficientFundsForSplit,
+    #[msg("It is not the dealer's turn")]
+    NotDealerTurnState,
+    #[msg("A payout instruction is missing for a winning hand")]
+    PayoutInstructionMissing,
+    #[msg("Payout instruction coordinates do not match expected seat/hand index")]
+    PayoutInstructionMismatch,
+    #[msg("Player token account not found in remaining accounts")]
+    PlayerTokenAccountNotFound,
+    #[msg("Pyth price feed account not found in remaining accounts")]
+    EscrowBumpNotFound,
+    #[msg("Withdrawal would leave insufficient value in the bank")]
+    InsufficientBankValue,
+    #[msg("Cannot close a table with an active game")]
+    CannotCloseTableActiveGame,
+    #[msg("Provided escrow account is not valid for this table")]
+    InvalidEscrowAccountForClosure,
+    #[msg("Dealer profit account owner mismatch")]
+    DealerProfitAccountOwnerMismatch,
+    #[msg("Owner fee account owner mismatch")]
+    OwnerFeeAccountOwnerMismatch,
+    #[msg("It is not the players' turn phase")]
+    NotPlayerTurnsState,
+    #[msg("It is not this player's turn to act")]
+    NotThisPlayerTurn,
+    #[msg("Turn timer has not been set")]
+    TurnTimerNotSet,
+    #[msg("Player turn time has not yet expired")]
+    TurnTimeNotExpired,
+    #[msg("The specified seat is not taken by any player")]
+    SeatNotTaken,
+    #[msg("The deck is out of cards")]
+    DeckEmpty,
+    #[msg("Cannot find a seat for the given player pubkey")]
+    CannotFindPlayerSeat,
+    #[msg("Token mint not found in dealer's profit tracker")]
+    TokenMintNotInProfitTracker,
+    #[msg("Table name is too short")]
+    TableNameTooShort,
+    #[msg("Table name is too long")]
+    TableNameTooLong,
+    #[msg("Table name contains invalid characters")]
+    TableNameInvalidChars,
+    #[msg("Table name has leading or trailing hyphens")]
+    TableNameInvalidHyphenPlacement,
+    #[msg("Table name has consecutive hyphens")]
+    TableNameConsecutiveHyphens,
+    #[msg("Signer is not the dealer for this table")]
+    DealerNotSigner,
+    #[msg("Signer is not the player at the specified seat index")]
+    PlayerNotAtSeatIndex,
+    #[msg("It is not this seat's turn")]
+    WrongSeatForTurn,
+    #[msg("It is not this hand's turn")]
+    WrongHandForTurn,
+    #[msg("The signer is not authorized to perform this action")]
+    Unauthorized,
+    #[msg("The backend signer is not authorized")]
+    UnauthorizedBackendSigner,
+    #[msg("Provided token account is not owned by the signer")]
+    PlayerNotSigner,
+    #[msg("Provided USDC token account does not match the required mint")]
+    UsdcMintMismatch,
+    #[msg("Failed to parse a pubkey from string")]
+    PubkeyParseError,
+    #[msg("Minimum bet cannot be zero")]
+    MinBetIsZero,
+    #[msg("Invalid seat index")]
+    InvalidSeatIndex,
+    #[msg("Seat is already taken")]
+    SeatTaken,
+    #[msg("Owner fee token account has the wrong mint")]
+    OwnerFeeAccountMintMismatch,
+    #[msg("Dealer profit token account has the wrong mint")]
+    DealerProfitAccountMintMismatch,
+    #[msg("Round is not over yet")]
+    NotRoundOverState,
+    #[msg("Price feed not found in the provided accounts")]
+    PriceFeedNotFound,
+    #[msg("Provided price feed account has invalid owner")]
+    InvalidPriceFeedOwner,
+    #[msg("Table still has active escrow funds")]
+    TableHasActiveEscrow,
+    #[msg("Player mismatch in backend results")]
+    PlayerMismatch,
+    #[msg("Hand not found for the specified indices")]
+    HandNotFound,
+    #[msg("Hand cards mismatch between backend and contract")]
+    HandCardsMismatch,
+    #[msg("Hand score mismatch between backend and contract")]
+    HandScoreMismatch,
+    #[msg("Outcome mismatch between backend calculation and contract")]
+    OutcomeMismatch,
+    #[msg("Invalid price feed index in remaining accounts")]
+    InvalidPriceFeedIndex,
+    #[msg("Duplicate account index detected in remaining accounts")]
+    DuplicateAccountIndex,
 }
