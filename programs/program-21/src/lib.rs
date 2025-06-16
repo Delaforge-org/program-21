@@ -1,7 +1,7 @@
 #![allow(deprecated)]
 
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount, Transfer};
+use anchor_spl::token::{TokenAccount, Transfer};
 use anchor_spl::token::spl_token;
 use pyth_sdk::PriceFeed;
 
@@ -96,94 +96,6 @@ pub struct DeckShuffled {
 // --- ОСНОВНАЯ ЛОГИКА ПРОГРАММЫ ---
 
 declare_id!("9KXtH1oFkFU3wey5BDxQbjLepFFvGQCQMtjs6zsfs3Dr"); // ЗАГЛУШКА ID, замените!
-
-// Вспомогательная функция для обработки одного escrow аккаунта (ВЫНЕСЕНА ЗА ПРЕДЕЛЫ #[program])
-fn process_escrow_account<'info>(
-    escrow_account_info: &AccountInfo<'info>,
-    dealer_token_account_info: &AccountInfo<'info>,
-    game_session: &Account<'info, GameSession>,
-    dealer: &UncheckedAccount<'info>,
-    token_program: &Program<'info, Token>,
-    authority_seeds: &[&[u8]],
-) -> Result<()> {
-    // Проверяем баланс escrow аккаунта
-    let escrow_data = escrow_account_info.try_borrow_data()?;
-    let escrow_account = TokenAccount::try_deserialize(&mut &escrow_data[..])?;
-    let amount = escrow_account.amount;
-    drop(escrow_data);
-
-    // Если есть токены, переводим их
-    if amount > 0 {
-        let transfer_instruction = spl_token::instruction::transfer(
-            &spl_token::id(),
-            escrow_account_info.key,
-            dealer_token_account_info.key,
-            &game_session.key(),
-            &[],
-            amount,
-        )?;
-
-        anchor_lang::solana_program::program::invoke_signed(
-            &transfer_instruction,
-            &[
-                escrow_account_info.clone(),
-                dealer_token_account_info.clone(),
-                game_session.to_account_info(),
-                token_program.to_account_info(),
-            ],
-            &[authority_seeds],
-        )?;
-    }
-
-    // Закрываем escrow аккаунт
-    let close_instruction = spl_token::instruction::close_account(
-        &spl_token::id(),
-        escrow_account_info.key,
-        &dealer.key(),
-        &game_session.key(),
-        &[],
-    )?;
-
-    anchor_lang::solana_program::program::invoke_signed(
-        &close_instruction,
-        &[
-            escrow_account_info.clone(),
-            dealer.to_account_info(),
-            game_session.to_account_info(),
-            token_program.to_account_info(),
-        ],
-        &[authority_seeds],
-    )?;
-
-    Ok(())
-}
-
-// Вспомогательная функция для переводов токенов (ВЫНЕСЕНА ЗА ПРЕДЕЛЫ #[program])
-fn execute_token_transfers(
-    ctx: &Context<ExecutePayouts>,
-    payouts: &[PayoutInstruction],
-    game_session: &Account<GameSession>,
-) -> Result<()> {
-    let table_name_bytes = game_session.table_name.as_bytes();
-    let bump_seed = [game_session.bump];
-    let signer_seeds = &[&[NORMALIZED_TABLE_NAME_PREFIX, table_name_bytes, &bump_seed][..]];
-    
-    for payout in payouts.iter() {
-        if payout.amount > 0 {
-            let cpi_accounts = Transfer {
-                from: ctx.remaining_accounts[payout.escrow_account_index as usize].to_account_info(),
-                to: ctx.remaining_accounts[payout.player_account_index as usize].to_account_info(),
-                authority: game_session.to_account_info(),
-            };
-            
-            let cpi_program = ctx.accounts.token_program.to_account_info();
-            let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
-            
-            anchor_spl::token::transfer(cpi_ctx, payout.amount)?;
-        }
-    }
-    Ok(())
-}
 
 #[program]
 pub mod program_21 {
@@ -654,7 +566,7 @@ pub mod program_21 {
         Ok(())
     }
     
-    // --- NEW: dealer_prepare_to_close ---
+    // --- 3.11. dealer_prepare_to_close ---
     pub fn dealer_prepare_to_close(ctx: Context<DealerAction>) -> Result<()> {
         let game_session = &mut ctx.accounts.game_session_account;
         verify_dealer_signer(game_session, &ctx.accounts.dealer)?;
@@ -668,153 +580,150 @@ pub mod program_21 {
         Ok(())
     }
     
-    // --- 3.11. resolve_round (ТОЛЬКО СВЕРКА РЕЗУЛЬТАТОВ) ---
-    pub fn resolve_round(
-        ctx: Context<ResolveRound>,
-        backend_results: Vec<PlayerHandResult>, // Результаты от бэкенда
+    // --- 3.11 & 3.12: ЕДИНАЯ ФУНКЦИЯ ФИНАЛИЗАЦИИ РАУНДА ---
+    /// Выполняет полную финализацию раунда: проверяет результаты, сверяет цены и выплачивает выигрыши.
+    /// Эта функция атомарно выполняет все действия, которые раньше были разделены на `resolve_round` и `execute_payouts`.
+    pub fn finalize_round(
+        ctx: Context<FinalizeRound>,
+        instructions: Vec<FinalizeInstruction>,
     ) -> Result<()> {
         let game_session = &mut ctx.accounts.game_session_account;
-        
-        if game_session.game_state != GameState::RoundOver { 
-            return err!(TwentyOneError::NotRoundOverState); 
+
+        if game_session.game_state != GameState::RoundOver {
+            return err!(TwentyOneError::NotRoundOverState);
         }
-        
-        // Получаем данные дилера для сверки
+
+        // --- ФАЗА 1: ВЕРИФИКАЦИЯ И РАСЧЕТ ---
+        struct CalculatedPayout {
+            player_token_account_index: usize,
+            escrow_account_index: usize,
+            amount: u64,
+        }
+        let mut calculated_payouts: Vec<CalculatedPayout> = Vec::with_capacity(instructions.len());
+        let mut event_results: Vec<PlayerHandResult> = Vec::with_capacity(instructions.len());
+
         let dealer_final_score = game_session.dealer_hand.calculate_score().0;
         let dealer_is_busted = game_session.dealer_hand.status == HandStatus::Busted;
         let dealer_has_blackjack = game_session.dealer_hand.is_blackjack();
-        
-        // СВЕРЯЕМ результаты от бэкенда с реальным состоянием игры
-        for backend_result in backend_results.iter() {
-            let seat_idx = backend_result.seat_index as usize;
-            let hand_idx = backend_result.hand_index as usize;
-            
-            // Проверяем что игрок существует
-            let player_seat = game_session.player_seats.get(seat_idx)
+
+        for instruction in instructions.iter() {
+            let player_seat = game_session.player_seats.get(instruction.seat_index as usize)
                 .ok_or(TwentyOneError::InvalidSeatIndex)?;
-            
-            if player_seat.player_pubkey.is_none() || !player_seat.is_active_in_round {
-                return err!(TwentyOneError::SeatNotTaken);
-            }
-            
-            if player_seat.player_pubkey.unwrap() != backend_result.player {
+            if player_seat.player_pubkey.unwrap() != instruction.player {
                 return err!(TwentyOneError::PlayerMismatch);
             }
-            
-            // Проверяем что рука существует
-            let hand = player_seat.hands.get(hand_idx)
+            let hand = player_seat.hands.get(instruction.hand_index as usize)
                 .ok_or(TwentyOneError::InvalidHandIndex)?;
             
-            if hand.cards.is_empty() {
-                return err!(TwentyOneError::HandNotFound);
-            }
-            
-            // СВЕРЯЕМ карты руки
-            if hand.cards != backend_result.hand_cards {
+            if hand.cards != instruction.hand_cards {
                 return err!(TwentyOneError::HandCardsMismatch);
             }
-            
-            // СВЕРЯЕМ счет руки
-            if hand.calculate_score().0 as u8 != backend_result.hand_score {
-                return err!(TwentyOneError::HandScoreMismatch);
-            }
-            
-            // СВЕРЯЕМ результат игры (самая важная проверка)
+
             let bet_usd_value: u128 = player_seat.current_bet_usd_value as u128;
             let effective_bet_usd = (bet_usd_value * hand.bet_multiplier_x100 as u128) / 100;
             
-            let (expected_payout_usd, expected_outcome) = calculate_expected_usd_return(
+            let (_expected_payout_usd, expected_outcome) = calculate_expected_usd_return(
                 hand, effective_bet_usd, dealer_final_score, dealer_is_busted, dealer_has_blackjack
             )?;
-            
-            // Проверяем что бэкенд правильно рассчитал исход
-            if backend_result.outcome != expected_outcome {
+
+            if instruction.outcome != expected_outcome {
                 return err!(TwentyOneError::OutcomeMismatch);
             }
-            
-            // Проверяем что бэкенд правильно рассчитал выплату (с учетом slippage)
-            let expected_payout = expected_payout_usd as u64;
-            let backend_payout = backend_result.payout;
-            
-            let slippage_amount = (expected_payout as u128 * PAYOUT_PRICE_SLIPPAGE_BPS as u128) / 10000;
-            let lower_bound = (expected_payout as u128).saturating_sub(slippage_amount) as u64;
-            let upper_bound = (expected_payout as u128).saturating_add(slippage_amount) as u64;
-            
-            if backend_payout < lower_bound || backend_payout > upper_bound {
-                return err!(TwentyOneError::PayoutCalculationMismatch);
+
+            if instruction.payout_amount_ui > 0 {
+                let pyth_account = &ctx.remaining_accounts[instruction.pyth_feed_index as usize];
+                if *pyth_account.owner != PYTH_RECEIVER_PROGRAM_ID {
+                    return err!(TwentyOneError::InvalidPriceFeedOwner);
+                }
+                let price_feed = PriceFeed::try_from_slice(&pyth_account.data.borrow())
+                    .map_err(|_| error!(TwentyOneError::PriceFeedStale))?;
+                let pyth_price = price_feed.get_price_unchecked();
+
+                let price_diff = (pyth_price.price - instruction.expected_price).abs();
+                let max_diff = (instruction.expected_price * PAYOUT_PRICE_SLIPPAGE_BPS as i64) / 10000;
+                if price_diff > max_diff {
+                    return err!(TwentyOneError::PayoutCalculationMismatch);
+                }
+
+                calculated_payouts.push(CalculatedPayout {
+                    player_token_account_index: instruction.player_token_account_index as usize,
+                    escrow_account_index: instruction.escrow_account_index as usize,
+                    amount: instruction.payout_amount_ui,
+                });
             }
+
+            event_results.push(PlayerHandResult {
+                player: instruction.player,
+                seat_index: instruction.seat_index,
+                hand_index: instruction.hand_index,
+                hand_cards: hand.cards.clone(),
+                hand_score: hand.calculate_score().0,
+                outcome: expected_outcome,
+                payout: instruction.payout_amount_ui,
+            });
         }
-        
-        // Если все проверки прошли - сбрасываем руки и меняем состояние
+
+        // --- ФАЗА 2: ОБНОВЛЕНИЕ СОСТОЯНИЯ И ИСПОЛНЕНИЕ ---
+
         game_session.reset_hands_for_new_round();
         if !game_session.closing_down {
             game_session.game_state = GameState::AcceptingBets;
         }
-        
-        // Отправляем событие с ПРОВЕРЕННЫМИ результатами от бэкенда
+
         emit!(RoundFinished {
             table_name: game_session.table_name.clone(),
             dealer_hand: game_session.dealer_hand.cards.clone(),
             dealer_score: dealer_final_score,
-            results: backend_results, // Используем проверенные результаты бэкенда
+            results: event_results,
         });
 
-        Ok(())
-    }
+        // --- ФАЗА 2.5: ПОЛНЫЙ РАЗРЫВ ЗАИМСТВОВАНИЙ ПЕРЕД ВЫПЛАТАМИ ---
 
-    // --- 3.12. execute_payouts (КЛОНИРОВАНИЕ ДАННЫХ) ---
-    pub fn execute_payouts(
-        ctx: Context<ExecutePayouts>,
-        payouts: Vec<PayoutInstruction>,
-        price_validations: Vec<PriceValidation>,
-    ) -> Result<()> {
-        let game_session = &ctx.accounts.game_session_account;
+        // Клонируем все AccountInfo, которые нам понадобятся, чтобы они не были заимствованы из `ctx`.
+        let token_program_info = ctx.accounts.token_program.to_account_info();
+        let game_session_info = ctx.accounts.game_session_account.to_account_info();
+        // **КЛЮЧЕВОЕ ИЗМЕНЕНИЕ:** Клонируем ВЕСЬ срез, чтобы получить полностью независимый Vec.
+        let remaining_accounts = ctx.remaining_accounts.to_vec();
+
+        // Данные для seeds также берем из независимых переменных.
+        let table_name_clone = ctx.accounts.game_session_account.table_name.clone();
+        let bump_seed_copy = [ctx.accounts.game_session_account.bump];
         
-        // 1. КЛОНИРУЕМ все данные аккаунтов заранее
-        let mut pyth_account_data = Vec::new();
-        for validation in price_validations.iter() {
-            let pyth_account = &ctx.remaining_accounts[validation.pyth_feed_index as usize];
-            
-            // Проверяем owner и клонируем данные
-            if *pyth_account.owner != PYTH_RECEIVER_PROGRAM_ID {
-                return err!(TwentyOneError::InvalidPriceFeedOwner);
-            }
-            
-            let data_clone = pyth_account.data.borrow().clone();
-            pyth_account_data.push(data_clone);
-        }
-        
-        // 2. Работаем с клонированными данными Pyth (БЕЗ заимствований remaining_accounts)
-        for (i, validation) in price_validations.iter().enumerate() {
-            let price_feed = PriceFeed::try_from_slice(&pyth_account_data[i])
-                .map_err(|_| error!(TwentyOneError::PriceFeedStale))?;
-            let pyth_price = price_feed.get_price_unchecked();
-            
-            let price_diff = (pyth_price.price - validation.expected_price).abs();
-            let max_diff = (validation.expected_price * PAYOUT_PRICE_SLIPPAGE_BPS as i64) / 10000;
-            
-            if price_diff > max_diff {
-                return err!(TwentyOneError::PayoutCalculationMismatch);
-            }
-        }
-        
-        // 3. ПОСЛЕ освобождения всех заимствований Pyth - делаем переводы
-        let table_name_bytes = game_session.table_name.as_bytes();
-        let bump_seed = [game_session.bump];
-        let signer_seeds = &[&[NORMALIZED_TABLE_NAME_PREFIX, table_name_bytes, &bump_seed][..]];
-        
-        for payout in payouts.iter() {
+        let signer_seeds = &[&[
+            NORMALIZED_TABLE_NAME_PREFIX,
+            table_name_clone.as_bytes(),
+            &bump_seed_copy,
+        ][..]];
+
+        // --- ФАЗА 3: ИСПОЛНЕНИЕ ВЫПЛАТ ---
+
+        for payout in calculated_payouts.iter() {
             if payout.amount > 0 {
-                let cpi_accounts = Transfer {
-                    from: ctx.remaining_accounts[payout.escrow_account_index as usize].to_account_info(),
-                    to: ctx.remaining_accounts[payout.player_account_index as usize].to_account_info(),
-                    authority: game_session.to_account_info(),
-                };
-                
-                let cpi_program = ctx.accounts.token_program.to_account_info();
-                let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
-                
-                anchor_spl::token::transfer(cpi_ctx, payout.amount)?;
+                // Теперь мы используем наш собственный, независимый Vec.
+                let from_account_info = &remaining_accounts[payout.escrow_account_index];
+                let to_account_info = &remaining_accounts[payout.player_token_account_index];
+
+                let transfer_instruction = spl_token::instruction::transfer(
+                    token_program_info.key,
+                    from_account_info.key,
+                    to_account_info.key,
+                    game_session_info.key,
+                    &[],
+                    payout.amount,
+                )?;
+
+                // Вызываем `invoke_signed` с полным набором необходимых аккаунтов.
+                anchor_lang::solana_program::program::invoke_signed(
+                    &transfer_instruction,
+                    &[
+                        from_account_info.clone(),
+                        to_account_info.clone(),
+                        game_session_info.clone(),
+                        // ИСПРАВЛЕНИЕ: Добавляем token_program, он требуется для инструкции.
+                        token_program_info.clone(),
+                    ],
+                    signer_seeds,
+                )?;
             }
         }
 
@@ -826,7 +735,7 @@ pub mod program_21 {
         ctx: Context<DealerWithdrawProfit>, 
         amount_to_withdraw_ui: u64,
         token_mint_to_withdraw: Pubkey,
-        remaining_balances: Vec<TokenBalance>,  // Готовые цены от бэкенда
+        remaining_balances: Vec<TokenBalance>,
     ) -> Result<()> {
         let game_session = &ctx.accounts.game_session_account;
         

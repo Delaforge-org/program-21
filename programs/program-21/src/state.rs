@@ -534,32 +534,32 @@ pub struct Payout {
     pub escrow_account_index: u8,         // ← Индекс в remaining_accounts
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
-pub struct HandPayoutInstruction {
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
+pub struct FinalizeInstruction {
+    // --- Информация для верификации состояния ---
+    /// Pubkey игрока, которому предназначена эта инструкция.
+    pub player: Pubkey,
+    /// Индекс места (seat), для которого производится расчет.
     pub seat_index: u8,
+    /// Индекс руки (hand) на этом месте (обычно 0, или 0/1 после сплита).
     pub hand_index: u8,
-    pub payouts: Vec<Payout>,
-}
+    /// Карты в руке, по мнению бэкенда. Контракт сверит их с реальными.
+    pub hand_cards: Vec<Card>,
+    /// Исход игры для этой руки, по мнению бэкенда. Контракт пересчитает и сверит.
+    pub outcome: HandOutcome,
 
-#[derive(Clone, Debug, AnchorSerialize, AnchorDeserialize)]
-pub struct PriceValidation {
-    pub token_mint: Pubkey,         // Mint токена
-    pub expected_price: i64,        // Цена от бэкенда
-    pub pyth_feed_index: u8,        // Индекс в remaining_accounts
-}
+    // --- Информация для верификации выплаты ---
+    /// Сумма выплаты в UI-единицах токена. Включает возврат ставки и выигрыш.
+    /// Контракт пересчитает эту сумму на основе курса Pyth и сверит.
+    pub payout_amount_ui: u64,
+    /// Ожидаемая цена токена в USD (в наименьших единицах), использованная бэкендом для расчета.
+    pub expected_price: i64,
 
-#[derive(Clone, Debug, AnchorSerialize, AnchorDeserialize)]
-pub struct PayoutInstruction {
-    pub amount: u64,                    // Сумма к выплате
-    pub player_account_index: u8,       // Индекс в remaining_accounts
-    pub escrow_account_index: u8,       // Индекс в remaining_accounts
-}
-
-#[derive(Clone, Debug, AnchorSerialize, AnchorDeserialize)]
-pub struct PayoutInstructionWithPrice {
-    pub amount: u64,                    // Сумма токенов к выплате
-    pub expected_usd_value: u64,        // Ожидаемая USD стоимость от бэкенда
-    pub player_account_index: u8,       // Индекс player account в remaining_accounts
-    pub escrow_account_index: u8,       // Индекс escrow account в remaining_accounts  
-    pub pyth_feed_index: u8,           // Индекс Pyth price feed в remaining_accounts
+    // --- Индексы аккаунтов в `remaining_accounts` ---
+    /// Индекс токен-аккаунта игрока, куда будет отправлена выплата.
+    pub player_token_account_index: u8,
+    /// Индекс escrow-счета (PDA), с которого будет производиться выплата.
+    pub escrow_account_index: u8,
+    /// Индекс аккаунта с ценой Pyth для токена этой выплаты.
+    pub pyth_feed_index: u8,
 }

@@ -274,22 +274,22 @@ pub struct BackendAuthorizedAction<'info> {
     pub clock: Sysvar<'info, Clock>,
 }
 
+/// Контекст для новой единой функции финализации раунда.
+/// Объединяет в себе проверку и выплаты.
 #[derive(Accounts)]
-pub struct ResolveRound<'info> {
+pub struct FinalizeRound<'info> {
     #[account(mut)]
     pub game_session_account: Account<'info, GameSession>,
-    
-    pub backend_signer: Signer<'info>,
-    
-    pub clock: Sysvar<'info, Clock>,
-}
 
-#[derive(Accounts)]
-pub struct ExecutePayouts<'info> {
-    #[account(mut)]
-    pub game_session_account: Account<'info, GameSession>,
-    
+    #[account(
+        // Проверяем, что вызов авторизован бэкендом
+        constraint = backend_signer.key() == authority_config.backend_authority @ TwentyOneError::UnauthorizedBackendSigner
+    )]
     pub backend_signer: Signer<'info>,
-    
+
+    #[account(seeds = [TableAuthorityConfig::SEED_PREFIX], bump = authority_config.bump)]
+    pub authority_config: Account<'info, TableAuthorityConfig>,
+
     pub token_program: Program<'info, Token>,
+    pub clock: Sysvar<'info, Clock>,
 }
