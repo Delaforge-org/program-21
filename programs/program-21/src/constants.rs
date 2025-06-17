@@ -40,14 +40,14 @@ pub const BASIS_POINTS_DIVISOR: u64 = 10000;
 pub const BET_ESCROW_SEED: &[u8] = b"bet_escrow";
 
 
-pub const DEFAULT_OWNER_FEE_RECIPIENT_STR: &str = "DDx7B6zkNhseqcp8Ym5JnP6YyRtMJ19cAML7EtfNz3CX"; // ЗАГЛУШКА, замените!
+pub const DEFAULT_OWNER_FEE_RECIPIENT_STR: &str = "DDx7B6zkNhseqcp8Ym5JnP6YyRtMJ19cAML7EtfNz3CX";
 
 pub const USDC_MINT_PUBKEY: Pubkey = pubkey!("DejYKjJTMYx6zWLAHdukSFbRyuLjiBFSQx68s7MZADJU");
 
 pub const MAX_HANDS_PER_PLAYER: usize = 2; // Максимум 1 сплит
 
 // Pubkey администратора, который имеет право изменять конфигурацию авторизации
-pub const CONFIG_UPDATE_AUTHORITY_STR: &str = "YourAdminPubkeyHere..."; // !!! ЗАМЕНИТЕ ЭТО !!!
+pub const CONFIG_UPDATE_AUTHORITY_STR: &str = "GazSGmVPxgrwzhX4RUQGPddRfmSkXca3dmuHAgmYiJdd";
 
 // Допустимое проскальзывание при проверке цен оракула (в базисных пунктах. 10 = 0.1%)
 pub const PAYOUT_PRICE_SLIPPAGE_BPS: u64 = 300; // 3% slippage tolerance
