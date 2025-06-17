@@ -583,8 +583,8 @@ pub mod program_21 {
     // --- 3.11 & 3.12: ЕДИНАЯ ФУНКЦИЯ ФИНАЛИЗАЦИИ РАУНДА ---
     /// Выполняет полную финализацию раунда: проверяет результаты, сверяет цены и выплачивает выигрыши.
     /// Эта функция атомарно выполняет все действия, которые раньше были разделены на `resolve_round` и `execute_payouts`.
-    pub fn finalize_round(
-        ctx: Context<FinalizeRound>,
+    pub fn finalize_round<'info>(
+        ctx: Context<'info, 'info, 'info, 'info, FinalizeRound<'info>>,
         instructions: Vec<FinalizeInstruction>,
     ) -> Result<()> {
         let game_session = &mut ctx.accounts.game_session_account;
