@@ -29,8 +29,6 @@ pub const PLAYER_TURN_TIMEOUT_SECONDS: i64 = 15;
 pub const BLACKJACK_PAYOUT_PROFIT_NUMERATOR: u64 = 13; 
 /// Знаменатель для расчета ПРОФИТА от блэкджека.
 pub const BLACKJACK_PAYOUT_PROFIT_DENOMINATOR: u64 = 10;
-pub const TWENTYONE_PAYOUT_MULTIPLIER_DENOMINATOR: u64 = 10;
-pub const WIN_PAYOUT_MULTIPLIER: u64 = 1; // Чистая выплата 1x от ставки
 
 // Комиссия платформы
 pub const OWNER_FEE_BPS: u64 = 2200; // 22% (1000 basis points = 10%)
@@ -39,15 +37,9 @@ pub const BASIS_POINTS_DIVISOR: u64 = 10000;
 // Сиды для PDA
 pub const BET_ESCROW_SEED: &[u8] = b"bet_escrow";
 
-
-pub const DEFAULT_OWNER_FEE_RECIPIENT_STR: &str = "DDx7B6zkNhseqcp8Ym5JnP6YyRtMJ19cAML7EtfNz3CX";
-
 pub const USDC_MINT_PUBKEY: Pubkey = pubkey!("DejYKjJTMYx6zWLAHdukSFbRyuLjiBFSQx68s7MZADJU");
 
 pub const MAX_HANDS_PER_PLAYER: usize = 2; // Максимум 1 сплит
-
-// Pubkey администратора, который имеет право изменять конфигурацию авторизации
-pub const CONFIG_UPDATE_AUTHORITY_STR: &str = "GazSGmVPxgrwzhX4RUQGPddRfmSkXca3dmuHAgmYiJdd";
 
 // Допустимое проскальзывание при проверке цен оракула (в базисных пунктах. 10 = 0.1%)
 pub const PAYOUT_PRICE_SLIPPAGE_BPS: u64 = 300; // 3% slippage tolerance
