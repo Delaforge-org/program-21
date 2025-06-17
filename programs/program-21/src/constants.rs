@@ -42,7 +42,7 @@ pub const BET_ESCROW_SEED: &[u8] = b"bet_escrow";
 
 pub const DEFAULT_OWNER_FEE_RECIPIENT_STR: &str = "DDx7B6zkNhseqcp8Ym5JnP6YyRtMJ19cAML7EtfNz3CX"; // ЗАГЛУШКА, замените!
 
-pub const USDC_MINT_PUBKEY_STR: &str = "DejYKjJTMYx6zWLAHdukSFbRyuLjiBFSQx68s7MZADJU";
+pub const USDC_MINT_PUBKEY: Pubkey = pubkey!("DejYKjJTMYx6zWLAHdukSFbRyuLjiBFSQx68s7MZADJU");
 
 pub const MAX_HANDS_PER_PLAYER: usize = 2; // Максимум 1 сплит
 

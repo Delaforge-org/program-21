@@ -18,9 +18,9 @@ idl-build = ["anchor-lang/idl-build"]
 
 
 [dependencies]
-anchor-lang = { version = "0.31.0", features = ["init-if-needed"] }
-anchor-spl = "0.31.0"
+anchor-lang = { version = "0.31.1", features = ["init-if-needed"] }
+anchor-spl = "0.31.1"
 pyth-sdk = "0.8.0"
-sha2 = "0.10"
-rand = "0.8"
-rand_chacha = "0.3"
+sha2 = "0.10.9"
+rand = "0.8.5"
+rand_chacha = "0.3.1"

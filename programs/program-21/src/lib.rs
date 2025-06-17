@@ -95,14 +95,14 @@ pub struct DeckShuffled {
 
 // --- ОСНОВНАЯ ЛОГИКА ПРОГРАММЫ ---
 
-declare_id!("9KXtH1oFkFU3wey5BDxQbjLepFFvGQCQMtjs6zsfs3Dr"); // ЗАГЛУШКА ID, замените!
+declare_id!("E1C6ncwdok2tpdA38XxbjwYiozL7zMXf4ChwxY9Cfiuk"); // ЗАГЛУШКА ID, замените!
 
 #[program]
 pub mod program_21 {
     use super::*; // Для доступа к items из constants, errors, state, utils, и событий
 
     // --- NEW: initialize_authority_config ---
-    pub fn initialize_authority_config(ctx: Context<InitializeAuthorityConfig>, backend_authority_pubkey: Pubkey) -> Result<()> {
+    pub fn initialize_authority_config<'info>(ctx: Context<'_, '_, '_, 'info, InitializeAuthorityConfig<'info>>, backend_authority_pubkey: Pubkey) -> Result<()> {
         let authority_config = &mut ctx.accounts.authority_config;
         authority_config.backend_authority = backend_authority_pubkey;
         authority_config.bump = ctx.bumps.authority_config;
@@ -110,14 +110,14 @@ pub mod program_21 {
     }
 
     // --- NEW: update_authority_config ---
-    pub fn update_authority_config(ctx: Context<UpdateAuthorityConfig>, new_backend_authority: Pubkey) -> Result<()> {
+    pub fn update_authority_config<'info>(ctx: Context<'_, '_, '_, 'info, UpdateAuthorityConfig<'info>>, new_backend_authority: Pubkey) -> Result<()> {
         ctx.accounts.authority_config.backend_authority = new_backend_authority;
         Ok(())
     }
 
     // --- 3.1. initialize_table ---
-    pub fn initialize_table(
-        ctx: Context<InitializeTable>,
+    pub fn initialize_table<'info>(
+        ctx: Context<'_, '_, '_, 'info, InitializeTable<'info>>,
         table_name_input: String,
         dealer_collateral_usd: u64,
         shuffle_seed_nonce: u64,
@@ -162,7 +162,7 @@ pub mod program_21 {
     }
 
     // --- 3.2. join_table (ЗАЩИЩЕНАЯ ВЕРСИЯ) ---
-    pub fn join_table(ctx: Context<JoinTable>, seat_index: u8) -> Result<()> {
+    pub fn join_table<'info>(ctx: Context<'_, '_, '_, 'info, JoinTable<'info>>, seat_index: u8) -> Result<()> {
         let game_session = &mut ctx.accounts.game_session_account;
         let player_to_seat = &ctx.accounts.player_to_seat; 
         let seat_idx = seat_index as usize;
@@ -183,7 +183,7 @@ pub mod program_21 {
     }
 
     // --- 3.3. leave_table ---
-    pub fn leave_table(ctx: Context<LeaveTable>, seat_index: u8) -> Result<()> {
+    pub fn leave_table<'info>(ctx: Context<'_, '_, '_, 'info, LeaveTable<'info>>, seat_index: u8) -> Result<()> {
         let game_session = &mut ctx.accounts.game_session_account;
         let player_account = &ctx.accounts.player_account;
         let seat_idx = seat_index as usize;
@@ -208,8 +208,8 @@ pub mod program_21 {
     }
 
     // --- 3.4. place_bet (С ПРОВЕРКОЙ ЦЕНЫ) ---
-    pub fn place_bet(
-        ctx: Context<PlaceBet>,
+    pub fn place_bet<'info>(
+        ctx: Context<'_, '_, '_, 'info, PlaceBet<'info>>,
         seat_index: u8,
         amount_staked_ui: u64, 
         usd_value_of_bet: u64,
@@ -273,7 +273,7 @@ pub mod program_21 {
     }
 
     // --- 3.5. deal_initial_cards (ЗАЩИЩЕНАЯ ВЕРСИЯ) ---
-    pub fn deal_initial_cards(ctx: Context<BackendAuthorizedAction>) -> Result<()> {
+    pub fn deal_initial_cards<'info>(ctx: Context<'_, '_, '_, 'info, BackendAuthorizedAction<'info>>) -> Result<()> {
         let game_session = &mut ctx.accounts.game_session_account;
         
         if game_session.game_state != GameState::AcceptingBets { return err!(TwentyOneError::InvalidGameStateForDeal); }
@@ -362,7 +362,7 @@ pub mod program_21 {
     }
     
     // --- 3.6. player_action_hit ---
-    pub fn player_action_hit(ctx: Context<PlayerAction>, seat_index: u8, hand_index: u8) -> Result<()> {
+    pub fn player_action_hit<'info>(ctx: Context<'_, '_, '_, 'info, PlayerAction<'info>>, seat_index: u8, hand_index: u8) -> Result<()> {
         let game_session = &mut ctx.accounts.game_session_account;
         verify_player_turn_and_hand(game_session, ctx.accounts.player_account.as_ref(), seat_index, hand_index)?;
         
@@ -392,7 +392,7 @@ pub mod program_21 {
     }
 
     // --- 3.7. player_action_stand ---
-    pub fn player_action_stand(ctx: Context<PlayerAction>, seat_index: u8, hand_index: u8) -> Result<()> {
+    pub fn player_action_stand<'info>(ctx: Context<'_, '_, '_, 'info, PlayerAction<'info>>, seat_index: u8, hand_index: u8) -> Result<()> {
         let game_session = &mut ctx.accounts.game_session_account;
         verify_player_turn_and_hand(game_session, ctx.accounts.player_account.as_ref(), seat_index, hand_index)?;
 
@@ -415,7 +415,7 @@ pub mod program_21 {
     }
 
     // --- 3.8. player_action_double_down ---
-    pub fn player_action_double_down(ctx: Context<PlayerActionDoubleOrSplit>, seat_index: u8, hand_index: u8) -> Result<()> {
+    pub fn player_action_double_down<'info>(ctx: Context<'_, '_, '_, 'info, PlayerActionDoubleOrSplit<'info>>, seat_index: u8, hand_index: u8) -> Result<()> {
         let game_session = &mut ctx.accounts.game_session_account;
         verify_player_turn_and_hand(game_session, ctx.accounts.player_account.as_ref(), seat_index, hand_index)?;
         
@@ -463,7 +463,7 @@ pub mod program_21 {
     }
     
     // --- 3.9. player_action_split ---
-    pub fn player_action_split(ctx: Context<PlayerActionDoubleOrSplit>, seat_index: u8, hand_index: u8) -> Result<()> {
+    pub fn player_action_split<'info>(ctx: Context<'_, '_, '_, 'info, PlayerActionDoubleOrSplit<'info>>, seat_index: u8, hand_index: u8) -> Result<()> {
         if hand_index != 0 { return err!(TwentyOneError::CannotSplitAlreadySplit); }
         
         let game_session = &mut ctx.accounts.game_session_account;
@@ -533,7 +533,7 @@ pub mod program_21 {
     }
 
     // --- 3.10. dealer_play_turn (ЗАЩИЩЕНАЯ ВЕРСИЯ) ---
-    pub fn dealer_play_turn(ctx: Context<BackendAuthorizedAction>) -> Result<()> {
+    pub fn dealer_play_turn<'info>(ctx: Context<'_, '_, '_, 'info, BackendAuthorizedAction<'info>>) -> Result<()> {
         let game_session = &mut ctx.accounts.game_session_account;
         if game_session.game_state != GameState::DealerTurn { return err!(TwentyOneError::NotDealerTurnState); }
 
@@ -567,7 +567,7 @@ pub mod program_21 {
     }
     
     // --- 3.11. dealer_prepare_to_close ---
-    pub fn dealer_prepare_to_close(ctx: Context<DealerAction>) -> Result<()> {
+    pub fn dealer_prepare_to_close<'info>(ctx: Context<'_, '_, '_, 'info, DealerAction<'info>>) -> Result<()> {
         let game_session = &mut ctx.accounts.game_session_account;
         verify_dealer_signer(game_session, &ctx.accounts.dealer)?;
         
@@ -584,7 +584,7 @@ pub mod program_21 {
     /// Выполняет полную финализацию раунда: проверяет результаты, сверяет цены и выплачивает выигрыши.
     /// Эта функция атомарно выполняет все действия, которые раньше были разделены на `resolve_round` и `execute_payouts`.
     pub fn finalize_round<'info>(
-        ctx: Context<'info, 'info, 'info, 'info, FinalizeRound<'info>>,
+        ctx: Context<'_, '_, '_, 'info, FinalizeRound<'info>>,
         instructions: Vec<FinalizeInstruction>,
     ) -> Result<()> {
         let game_session = &mut ctx.accounts.game_session_account;
@@ -731,8 +731,8 @@ pub mod program_21 {
     }
 
     // --- 3.13. dealer_withdraw_profit (ПРОСТАЯ ПРОВЕРКА ОСТАТКОВ) ---
-    pub fn dealer_withdraw_profit(
-        ctx: Context<DealerWithdrawProfit>, 
+    pub fn dealer_withdraw_profit<'info>(
+        ctx: Context<'_, '_, '_, 'info, DealerWithdrawProfit<'info>>, 
         amount_to_withdraw_ui: u64,
         token_mint_to_withdraw: Pubkey,
         remaining_balances: Vec<TokenBalance>,
@@ -814,7 +814,7 @@ pub mod program_21 {
     }
 
     // --- 3.15. dealer_close_table (УПРОЩЕННАЯ ВЕРСИЯ) ---
-    pub fn dealer_close_table(ctx: Context<DealerCloseTable>) -> Result<()> {
+    pub fn dealer_close_table<'info>(ctx: Context<'_, '_, '_, 'info, DealerCloseTable<'info>>) -> Result<()> {
         let game_session = &ctx.accounts.game_session_account;
 
         // Базовые проверки состояния
@@ -851,14 +851,21 @@ pub mod program_21 {
     }
 
     // --- 3.16. force_player_action ---
-    pub fn force_player_action(ctx: Context<ForcePlayerAction>, seat_index: u8, hand_index: u8, action: ForcedAction) -> Result<()> {
+    pub fn force_player_action<'info>(ctx: Context<'_, '_, '_, 'info, ForcePlayerAction<'info>>, seat_index: u8, hand_index: u8, action: ForcedAction) -> Result<()> {
         let game_session = &mut ctx.accounts.game_session_account;
         let clock = &ctx.accounts.clock;
 
         if game_session.game_state != GameState::PlayerTurns { return err!(TwentyOneError::NotPlayerTurnsState); }
         
         let (current_seat, current_hand) = (game_session.current_turn_seat_index, game_session.current_turn_hand_index);
-        if current_seat != Some(seat_index) || current_hand != Some(hand_index) { return err!(TwentyOneError::NotThisPlayerTurn); }
+        
+        // ИСПРАВЛЕНИЕ: Разделяем проверку на две, чтобы использовать существующие ошибки
+        if current_seat != Some(seat_index) { 
+            return err!(TwentyOneError::WrongSeatForTurn); 
+        }
+        if current_hand != Some(hand_index) { 
+            return err!(TwentyOneError::WrongHandForTurn); 
+        }
         
         let start_time = game_session.current_turn_start_timestamp.ok_or(TwentyOneError::TurnTimerNotSet)?;
         if clock.unix_timestamp <= start_time.checked_add(PLAYER_TURN_TIMEOUT_SECONDS).ok_or(TwentyOneError::ArithmeticOverflow)? {

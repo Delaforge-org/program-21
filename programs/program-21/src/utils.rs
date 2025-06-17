@@ -12,8 +12,9 @@ use rand_chacha::ChaCha8Rng;
 /// Нормализует и проверяет имя стола.
 pub fn normalize_and_validate_table_name(name: &str) -> Result<String> {
     let trimmed = name.trim();
-    if trimmed.len() < TABLE_NAME_MIN_LEN { return err!(TwentyOneError::TableNameTooShort); }
-    if trimmed.len() > TABLE_NAME_MAX_LEN { return err!(TwentyOneError::TableNameTooLong); }
+    if trimmed.len() < TABLE_NAME_MIN_LEN || trimmed.len() > TABLE_NAME_MAX_LEN {
+        return err!(TwentyOneError::TableNameLengthInvalid);
+    }
 
     let normalized: String = trimmed.to_lowercase();
 
