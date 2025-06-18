@@ -613,6 +613,25 @@ pub mod program_21 {
         instructions: Vec<FinalizeInstruction>,
         next_shuffle_commit: Option<[u8; 32]>
     ) -> Result<()> {
+        // --- ФАЗА 0: ИЗВЛЕЧЕНИЕ ДАННЫХ ВО ИЗБЕЖАНИЕ КОНФЛИКТА ЗАИМСТВОВАНИЙ ---
+        // Чтобы избежать ошибки 'cannot borrow `...` as immutable because it is also borrowed as mutable',
+        // мы сначала извлекаем все необходимые данные, которые не будут меняться (immutable borrows).
+        // Мы клонируем эти данные, чтобы они имели независимое время жизни.
+        let game_session_info = ctx.accounts.game_session_account.to_account_info();
+        let table_name_clone = ctx.accounts.game_session_account.table_name.clone();
+        let bump_seed_copy = [ctx.accounts.game_session_account.bump];
+
+        let signer_seeds = &[&[
+            NORMALIZED_TABLE_NAME_PREFIX,
+            table_name_clone.as_bytes(),
+            &bump_seed_copy,
+        ][..]];
+
+        let token_program_info = ctx.accounts.token_program.to_account_info();
+        // Клонируем срез remaining_accounts, чтобы получить полностью независимый вектор Vec.
+        let remaining_accounts = ctx.remaining_accounts.to_vec();
+
+        // Теперь, когда все immutable borrows завершены, мы можем безопасно взять mutable borrow.
         let game_session = &mut ctx.accounts.game_session_account;
 
         if game_session.game_state != GameState::RoundOver {
@@ -702,24 +721,6 @@ pub mod program_21 {
             dealer_score: dealer_final_score,
             results: event_results,
         });
-
-        // --- ФАЗА 2.5: ПОЛНЫЙ РАЗРЫВ ЗАИМСТВОВАНИЙ ПЕРЕД ВЫПЛАТАМИ ---
-
-        // Клонируем все AccountInfo, которые нам понадобятся, чтобы они не были заимствованы из `ctx`.
-        let token_program_info = ctx.accounts.token_program.to_account_info();
-        let game_session_info = ctx.accounts.game_session_account.to_account_info();
-        // **КЛЮЧЕВОЕ ИЗМЕНЕНИЕ:** Клонируем ВЕСЬ срез, чтобы получить полностью независимый Vec.
-        let remaining_accounts = ctx.remaining_accounts.to_vec();
-
-        // Данные для seeds также берем из независимых переменных.
-        let table_name_clone = ctx.accounts.game_session_account.table_name.clone();
-        let bump_seed_copy = [ctx.accounts.game_session_account.bump];
-        
-        let signer_seeds = &[&[
-            NORMALIZED_TABLE_NAME_PREFIX,
-            table_name_clone.as_bytes(),
-            &bump_seed_copy,
-        ][..]];
 
         // --- ФАЗА 3: ИСПОЛНЕНИЕ ВЫПЛАТ ---
 
