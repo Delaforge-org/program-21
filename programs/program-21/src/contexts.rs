@@ -3,7 +3,6 @@ use anchor_spl::token::{Mint, Token, TokenAccount};
 use crate::state::{TableAuthorityConfig, GameSession};
 use crate::constants::{BET_ESCROW_SEED, NORMALIZED_TABLE_NAME_PREFIX, USDC_MINT_PUBKEY};
 use crate::errors::TwentyOneError;
-use crate::utils::normalize_and_validate_table_name;
 
 // --- КОНТЕКСТЫ ДЛЯ УПРАВЛЕНИЯ АВТОРИЗАЦИЕЙ ---
 
@@ -42,7 +41,7 @@ pub struct InitializeTable<'info> {
         init,
         payer = dealer,
         space = GameSession::CALCULATED_LEN,
-        seeds = [NORMALIZED_TABLE_NAME_PREFIX, normalize_and_validate_table_name(&table_name_input).unwrap().as_bytes()],
+        seeds = [NORMALIZED_TABLE_NAME_PREFIX, table_name_input.as_bytes()],
         bump
     )]
     pub game_session_account: Account<'info, GameSession>,
@@ -108,9 +107,21 @@ pub struct DealerCloseTable<'info> {
 pub struct JoinTable<'info> {
     #[account(mut)]
     pub game_session_account: Account<'info, GameSession>,
-    #[account(mut)]
-    pub player_to_seat: Signer<'info>,
-    pub system_program: Program<'info, System>,
+    
+    /// CHECK: This is the Pubkey of the player being seated. The backend is responsible for verifying the player's identity.
+    pub player_to_seat: AccountInfo<'info>,
+
+    #[account(
+        mut,
+        constraint = backend_signer.key() == authority_config.backend_authority @ TwentyOneError::BackendSignerMismatch
+    )]
+    pub backend_signer: Signer<'info>,
+    
+    #[account(
+        seeds = [TableAuthorityConfig::SEED_PREFIX],
+        bump
+    )]
+    pub authority_config: Account<'info, TableAuthorityConfig>,
 }
 
 #[derive(Accounts)]

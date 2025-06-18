@@ -11,6 +11,8 @@ pub enum TwentyOneError {
     TableNameInvalidHyphenPlacement,
     #[msg("Table name cannot have consecutive hyphens.")]
     TableNameConsecutiveHyphens,
+    #[msg("The provided table name was not in its normalized (canonical) form. The client must normalize it before sending.")]
+    TableNameNotNormalized,
     #[msg("The provided seat index is out of bounds for this table.")]
     InvalidSeatIndex,
     #[msg("The specified seat is already taken.")]
@@ -102,4 +104,12 @@ pub enum TwentyOneError {
     TableHasActiveEscrow,
     #[msg("Attempted to withdraw a token that is not tracked in the dealer's profit.")]
     TokenMintNotInProfitTracker,
+    #[msg("A commitment for the next shuffle must be provided when the deck is low.")]
+    NextShuffleCommitmentRequired,
+    #[msg("A shuffle is required, but no commitment for the nonce was found.")]
+    ShuffleCommitmentMissing,
+    #[msg("The revealed nonce for shuffling does not match the commitment.")]
+    ShuffleCommitmentInvalid,
+    #[msg("A shuffle is required, but no nonce was provided.")]
+    ShuffleNonceRequired,
 }

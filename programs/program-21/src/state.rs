@@ -301,14 +301,17 @@ pub struct GameSession {
     pub seed_elements_hash: [u8; 32],             // Хеш элементов, использованных для сида тасования колоды (слот, время, pubkey дилера, nonce).
 
     // --- Отслеживание текущего хода ---
-    pub current_turn_seat_index: Option<u8>,      // Индекс места игрока (0 до max_players-1), чей сейчас ход. None, если ход дилера или межраундье.
-    pub current_turn_hand_index: Option<u8>,      // Индекс руки игрока (0 или 1, для разделенных рук), если у него несколько рук.
-    pub current_turn_start_timestamp: Option<i64>,// Время начала хода текущего игрока (unix timestamp).
-    pub closing_down: bool, // <-- НАШ НОВЫЙ ФЛАГ
+    pub current_turn_seat_index: Option<u8>,
+    pub current_turn_hand_index: Option<u8>,
+    pub current_turn_start_timestamp: Option<i64>,
+    pub closing_down: bool,
+    
+    // --- Commit-Reveal для перетасовки ---
+    pub next_shuffle_commitment: Option<[u8; 32]>, // Хеш для следующего сида тасования.
     
     // --- Служебные поля PDA ---
-    pub bump: u8,                                 // Bump для PDA GameSession.
-    pub dealer_usdc_escrow_bump: u8,              // Bump для PDA dealer_usdc_escrow.
+    pub bump: u8,
+    pub dealer_usdc_escrow_bump: u8,
 }
 
 impl GameSession {
@@ -373,6 +376,7 @@ impl GameSession {
         (1 + 1) +                                   // current_turn_hand_index (Option<u8>)
         (1 + 8) +                                   // current_turn_start_timestamp (Option<i64>)
         1 +                                         // closing_down (bool)
+        (1 + 32) +                                  // next_shuffle_commitment (Option<[u8; 32]>)
         1 +                                         // bump (u8)
         1;                                          // dealer_usdc_escrow_bump (u8)
 

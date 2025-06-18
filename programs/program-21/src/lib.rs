@@ -95,7 +95,7 @@ pub struct DeckShuffled {
 
 // --- ОСНОВНАЯ ЛОГИКА ПРОГРАММЫ ---
 
-declare_id!("E1C6ncwdok2tpdA38XxbjwYiozL7zMXf4ChwxY9Cfiuk"); // ЗАГЛУШКА ID, замените!
+declare_id!("E1C6ncwdok2tpdA38XxbjwYiozL7zMXf4ChwxY9Cfiuk");
 
 #[program]
 pub mod program_21 {
@@ -126,7 +126,11 @@ pub mod program_21 {
         let dealer = &ctx.accounts.dealer;
         let clock = &ctx.accounts.clock;
 
+        // ВАЛИДАЦИЯ: Проверяем, что клиент прислал уже нормализованное имя.
         let normalized_table_name = normalize_and_validate_table_name(&table_name_input)?;
+        if normalized_table_name != table_name_input {
+            return err!(TwentyOneError::TableNameNotNormalized);
+        }
         
         if dealer_collateral_usd == 0 { return err!(TwentyOneError::MinBetIsZero); }
         
@@ -141,7 +145,8 @@ pub mod program_21 {
             dealer_collateral_usd
         )?;
 
-        game_session.table_name = normalized_table_name;
+        // Используем уже проверенное и нормализованное имя из `table_name_input`.
+        game_session.table_name = table_name_input;
         game_session.dealer = dealer.key();
         game_session.dealer_locked_usdc_amount = dealer_collateral_usd;
         game_session.game_state = GameState::AcceptingBets;
@@ -164,18 +169,18 @@ pub mod program_21 {
     // --- 3.2. join_table (ЗАЩИЩЕНАЯ ВЕРСИЯ) ---
     pub fn join_table<'info>(ctx: Context<'_, '_, '_, 'info, JoinTable<'info>>, seat_index: u8) -> Result<()> {
         let game_session = &mut ctx.accounts.game_session_account;
-        let player_to_seat = &ctx.accounts.player_to_seat; 
+        let player_to_seat_key = ctx.accounts.player_to_seat.key();
         let seat_idx = seat_index as usize;
 
         if seat_idx >= game_session.player_seats.len() { return err!(TwentyOneError::InvalidSeatIndex); }
         if game_session.player_seats[seat_idx].player_pubkey.is_some() { return err!(TwentyOneError::SeatTaken); }
 
-        game_session.player_seats[seat_idx].player_pubkey = Some(player_to_seat.key());
+        game_session.player_seats[seat_idx].player_pubkey = Some(player_to_seat_key);
         game_session.player_seats[seat_idx].reset_for_new_round(); 
 
         emit!(PlayerJoined {
             table_name: game_session.table_name.clone(),
-            player: player_to_seat.key(),
+            player: player_to_seat_key,
             seat_index,
         });
 
@@ -272,27 +277,47 @@ pub mod program_21 {
         Ok(())
     }
 
-    // --- 3.5. deal_initial_cards (ЗАЩИЩЕНАЯ ВЕРСИЯ) ---
-    pub fn deal_initial_cards<'info>(ctx: Context<'_, '_, '_, 'info, BackendAuthorizedAction<'info>>) -> Result<()> {
+    // --- 3.5. deal_initial_cards (С ЛОГИКОЙ COMMIT-REVEAL) ---
+    pub fn deal_initial_cards<'info>(
+        ctx: Context<'_, '_, '_, 'info, BackendAuthorizedAction<'info>>,
+        shuffle_seed_nonce: Option<u64>
+    ) -> Result<()> {
         let game_session = &mut ctx.accounts.game_session_account;
         
-        if game_session.game_state != GameState::AcceptingBets { return err!(TwentyOneError::InvalidGameStateForDeal); }
+        if game_session.game_state != GameState::AcceptingBets {
+            return err!(TwentyOneError::InvalidGameStateForDeal);
+        }
 
+        // --- ФАЗА "REVEAL" ---
         if game_session.current_deck_index >= DECK_RESHUFFLE_THRESHOLD_INDEX {
+            // Требуется перетасовка. Проверяем nonce.
+            let nonce = shuffle_seed_nonce.ok_or(TwentyOneError::ShuffleNonceRequired)?;
+            let commitment = game_session.next_shuffle_commitment.ok_or(TwentyOneError::ShuffleCommitmentMissing)?;
+
             let seed_hash = generate_shuffle_seed_hash(
                 ctx.accounts.clock.slot,
                 ctx.accounts.clock.unix_timestamp,
                 &ctx.accounts.backend_signer.key(),
-                game_session.current_deck_index as u64,
+                nonce, // Используем раскрытый nonce
             );
+
+            if seed_hash != commitment {
+                return err!(TwentyOneError::ShuffleCommitmentInvalid);
+            }
+
+            // Тасуем колоду и сбрасываем коммит
             game_session.shuffle_deck(seed_hash)?;
+            game_session.next_shuffle_commitment = None;
+            
             emit!(DeckShuffled {
                 table_name: game_session.table_name.clone(),
             });
         }
 
         let active_player_count = game_session.player_seats.iter().filter(|s| s.is_active_in_round).count();
-        if active_player_count < MIN_PLAYERS_FOR_DEAL as usize { return err!(TwentyOneError::NotEnoughPlayers); }
+        if active_player_count < MIN_PLAYERS_FOR_DEAL as usize {
+            return err!(TwentyOneError::NotEnoughPlayers);
+        }
         
         game_session.dealer_hand = Hand::default();
 
@@ -586,6 +611,7 @@ pub mod program_21 {
     pub fn finalize_round<'info>(
         ctx: Context<'_, '_, '_, 'info, FinalizeRound<'info>>,
         instructions: Vec<FinalizeInstruction>,
+        next_shuffle_commit: Option<[u8; 32]>
     ) -> Result<()> {
         let game_session = &mut ctx.accounts.game_session_account;
 
@@ -725,6 +751,13 @@ pub mod program_21 {
                     signer_seeds,
                 )?;
             }
+        }
+
+        // --- ФАЗА "COMMIT" ДЛЯ СЛЕДУЮЩЕЙ ПЕРЕТАСОВКИ ---
+        if game_session.current_deck_index >= DECK_RESHUFFLE_THRESHOLD_INDEX {
+            // Для следующего раунда потребуется перетасовка, поэтому бэкенд ОБЯЗАН предоставить коммит.
+            let commit = next_shuffle_commit.ok_or(TwentyOneError::NextShuffleCommitmentRequired)?;
+            game_session.next_shuffle_commitment = Some(commit);
         }
 
         Ok(())
